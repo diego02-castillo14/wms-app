@@ -8,30 +8,18 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
-# LOGO
+# LOGO CENTRADO
 # -------------------------
-col1, col2, col3 = st.columns([1,2,1])
-
-with col2:
-    st.image("logo.jpg", width=250)
+st.markdown(
+    """
+    <div style="text-align: center;">
+        <img src="logo.jpg" width="220">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.title("🔎 WMS Buscador de Ubicaciones")
-
-# -------------------------
-# CARGA DE DATOS
-# -------------------------
-@st.cache_data
-def cargar_datos():
-    df = pd.read_excel("inventario.xlsx")
-    df.columns = df.columns.str.strip()
-
-    df["Clave"] = df["Clave"].astype(str).str.strip().str.upper()
-    df["Descripción"] = df["Descripción"].astype(str).str.strip()
-    df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
-
-    return df
-
-df = cargar_datos()
 
 # -------------------------
 # INTERPRETAR UBICACIÓN
@@ -42,7 +30,6 @@ def interpretar_ubicacion(codigo):
     almacen_map = {"A": "Álamos", "B": "Balboa"}
     almacen = almacen_map.get(partes[0], partes[0])
 
-    # ANAQUEL
     anaquel_raw = partes[1] if len(partes) > 1 else ""
     if anaquel_raw == "AR":
         anaquel = "Sin anaquel"
@@ -51,7 +38,6 @@ def interpretar_ubicacion(codigo):
     else:
         anaquel = anaquel_raw
 
-    # PISO
     piso_raw = partes[2] if len(partes) > 2 else ""
     if piso_raw == "AR":
         piso = "Arriba"
@@ -62,7 +48,6 @@ def interpretar_ubicacion(codigo):
     else:
         piso = piso_raw
 
-    # CAJA
     caja_raw = partes[3] if len(partes) > 3 else ""
 
     if caja_raw == "00":
@@ -83,11 +68,32 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# AGREGAR COLUMNAS DE FILTRO
+# CARGA DE DATOS (OPTIMIZADA)
 # -------------------------
-df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
-    lambda x: pd.Series(interpretar_ubicacion(x))
-)
+@st.cache_data
+def cargar_datos():
+    df = pd.read_excel("inventario.xlsx")
+    df.columns = df.columns.str.strip()
+
+    df["Clave"] = df["Clave"].astype(str).str.strip().str.upper()
+    df["Descripción"] = df["Descripción"].astype(str).str.strip()
+    df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
+
+    # 🔥 PROCESAR UNA SOLA VEZ
+    df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
+        lambda x: pd.Series(interpretar_ubicacion(x))
+    )
+
+    return df
+
+df = cargar_datos()
+
+# -------------------------
+# BOTÓN RECARGAR
+# -------------------------
+if st.button("🔄 Recargar datos"):
+    st.cache_data.clear()
+    st.rerun()
 
 # -------------------------
 # FILTROS
@@ -97,15 +103,15 @@ st.subheader("🎛️ Filtros")
 colf1, colf2 = st.columns(2)
 
 with colf1:
-    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique().tolist()))
-    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique().tolist()))
+    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique()))
+    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique()))
 
 with colf2:
-    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique().tolist()))
-    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique().tolist()))
+    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique()))
+    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
 # -------------------------
-# BUSCADOR + BOTÓN ESCÁNER
+# BUSCADOR + ESCÁNER
 # -------------------------
 col1, col2 = st.columns([4,1])
 
@@ -116,7 +122,7 @@ with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER
+# ESCÁNER WEB (RÁPIDO)
 # -------------------------
 if activar_scan:
     components.html("""
@@ -143,7 +149,7 @@ if activar_scan:
     """, height=300)
 
 # -------------------------
-# FILTRADO + BÚSQUEDA
+# FILTRADO
 # -------------------------
 df_filtrado = df.copy()
 
@@ -159,34 +165,42 @@ if filtro_piso != "Todos":
 if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
-if query:
+# -------------------------
+# BÚSQUEDA OPTIMIZADA
+# -------------------------
+if query and len(query) >= 2:
     query = query.lower()
+
     df_filtrado = df_filtrado[
-        df_filtrado["Clave"].str.lower().str.contains(query) |
-        df_filtrado["Descripción"].str.lower().str.contains(query)
+        df_filtrado["Clave"].str.lower().str.contains(query, na=False) |
+        df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
     ]
 
+# 🔥 LIMITAR RESULTADOS (CLAVE)
+MAX_RESULTADOS = 50
+df_filtrado = df_filtrado.head(MAX_RESULTADOS)
+
 # -------------------------
-# RESULTADOS
+# RESULTADOS (RÁPIDOS)
 # -------------------------
 if not df_filtrado.empty:
     st.success(f"Resultados: {len(df_filtrado)}")
 
-    for _, row in df_filtrado.iterrows():
-        with st.container():
-            st.markdown("---")
+    for row in df_filtrado.itertuples():
+        st.markdown("---")
 
-            st.markdown(f"### 🔩 {row['Clave']}")
-            st.write(row["Descripción"])
+        st.markdown(f"### 🔩 {row.Clave}")
+        st.write(row.Descripción)
 
-            col1, col2 = st.columns(2)
+        col1, col2 = st.columns(2)
 
-            with col1:
-                st.info(f"📍 {row['Almacén']}")
-                st.info(f"🗄 {row['Anaquel']}")
+        with col1:
+            st.info(f"📍 {row.Almacén}")
+            st.info(f"🗄 {row.Anaquel}")
 
-            with col2:
-                st.success(f"📦 {row['Piso']}")
-                st.success(f"📦 {row['Caja']}")
+        with col2:
+            st.success(f"📦 {row.Piso}")
+            st.success(f"📦 {row.Caja}")
+
 else:
     st.warning("Sin resultados")
