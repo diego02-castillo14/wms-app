@@ -8,6 +8,16 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
+# LOGO
+# -------------------------
+col1, col2, col3 = st.columns([1,2,1])
+
+with col2:
+    st.image("logo.jpg", width=250)
+
+st.title("🔎 WMS Buscador de Ubicaciones")
+
+# -------------------------
 # CARGA DE DATOS
 # -------------------------
 @st.cache_data
@@ -15,7 +25,7 @@ def cargar_datos():
     df = pd.read_excel("inventario.xlsx")
     df.columns = df.columns.str.strip()
 
-    df["Clave"] = df["Clave"].astype(str).str.strip()
+    df["Clave"] = df["Clave"].astype(str).str.strip().str.upper()
     df["Descripción"] = df["Descripción"].astype(str).str.strip()
     df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
 
@@ -35,7 +45,7 @@ def interpretar_ubicacion(codigo):
     # ANAQUEL
     anaquel_raw = partes[1] if len(partes) > 1 else ""
     if anaquel_raw == "AR":
-        anaquel = "Sin anaquel (Arriba)"
+        anaquel = "Sin anaquel"
     elif anaquel_raw.startswith("A"):
         anaquel = f"Anaquel {anaquel_raw[1:]}"
     else:
@@ -73,39 +83,40 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# BUSCAR
+# AGREGAR COLUMNAS DE FILTRO
 # -------------------------
-def buscar(query):
-    query = str(query).strip().lower()
-    query = query.replace(".0", "")
-
-    df_temp = df.copy()
-    df_temp["Clave"] = df_temp["Clave"].str.lower()
-    df_temp["Descripción"] = df_temp["Descripción"].str.lower()
-    df_temp["Ubicación"] = df_temp["Ubicación"].str.lower()
-
-    return df_temp[
-        df_temp["Clave"].str.contains(query, na=False) |
-        df_temp["Descripción"].str.contains(query, na=False) |
-        df_temp["Ubicación"].str.contains(query, na=False)
-    ]
+df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
+    lambda x: pd.Series(interpretar_ubicacion(x))
+)
 
 # -------------------------
-# UI
+# FILTROS
 # -------------------------
-st.title("🔎 WMS Buscador de Ubicaciones")
+st.subheader("🎛️ Filtros")
 
-# 🔍 BARRA + BOTÓN
+colf1, colf2 = st.columns(2)
+
+with colf1:
+    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique().tolist()))
+    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique().tolist()))
+
+with colf2:
+    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique().tolist()))
+    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique().tolist()))
+
+# -------------------------
+# BUSCADOR + BOTÓN ESCÁNER
+# -------------------------
 col1, col2 = st.columns([4,1])
 
 with col1:
-    query = st.text_input("🔍 Buscar producto", key="busqueda")
+    query = st.text_input("🔍 Buscar producto")
 
 with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER (SOLO SI SE ACTIVA)
+# ESCÁNER
 # -------------------------
 if activar_scan:
     components.html("""
@@ -121,50 +132,61 @@ if activar_scan:
         }
     }
 
-    const config = {
-        fps: 10,
-        qrbox: {width: 250, height: 150},
-        videoConstraints: {
-            facingMode: "environment" // 🔥 cámara trasera
-        }
-    };
-
     const html5QrcodeScanner = new Html5Qrcode("reader");
 
     html5QrcodeScanner.start(
         { facingMode: "environment" },
-        config,
+        { fps: 10, qrbox: {width: 250, height: 150} },
         onScanSuccess
     );
     </script>
     """, height=300)
 
 # -------------------------
+# FILTRADO + BÚSQUEDA
+# -------------------------
+df_filtrado = df.copy()
+
+if filtro_almacen != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Almacén"] == filtro_almacen]
+
+if filtro_anaquel != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Anaquel"] == filtro_anaquel]
+
+if filtro_piso != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Piso"] == filtro_piso]
+
+if filtro_caja != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
+
+if query:
+    query = query.lower()
+    df_filtrado = df_filtrado[
+        df_filtrado["Clave"].str.lower().str.contains(query) |
+        df_filtrado["Descripción"].str.lower().str.contains(query)
+    ]
+
+# -------------------------
 # RESULTADOS
 # -------------------------
-if query:
-    resultados = buscar(query)
+if not df_filtrado.empty:
+    st.success(f"Resultados: {len(df_filtrado)}")
 
-    if resultados.empty:
-        st.error("❌ No se encontraron resultados")
-    else:
-        st.success(f"Resultados encontrados: {len(resultados)}")
+    for _, row in df_filtrado.iterrows():
+        with st.container():
+            st.markdown("---")
 
-        for _, row in resultados.iterrows():
-            almacen, anaquel, piso, caja = interpretar_ubicacion(row["Ubicación"])
+            st.markdown(f"### 🔩 {row['Clave']}")
+            st.write(row["Descripción"])
 
-            with st.container():
-                st.markdown("---")
+            col1, col2 = st.columns(2)
 
-                st.markdown(f"### 🔩 {row['Clave']}")
-                st.write(row["Descripción"])
+            with col1:
+                st.info(f"📍 {row['Almacén']}")
+                st.info(f"🗄 {row['Anaquel']}")
 
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.info(f"📍 Almacén: {almacen}")
-                    st.info(f"🗄 Anaquel: {anaquel}")
-
-                with col2:
-                    st.success(f"📦 Piso: {piso}")
-                    st.success(f"📦 Caja: {caja}")
+            with col2:
+                st.success(f"📦 {row['Piso']}")
+                st.success(f"📦 {row['Caja']}")
+else:
+    st.warning("Sin resultados")
