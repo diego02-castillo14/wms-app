@@ -10,14 +10,10 @@ st.set_page_config(page_title="WMS Buscador", layout="centered")
 # -------------------------
 # LOGO CENTRADO
 # -------------------------
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <img src="logo.jpg" width="220">
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
+
+with col_logo2:
+    st.image("logo.jpg", width=220)
 
 st.title("🔎 WMS Buscador de Ubicaciones")
 
