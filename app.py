@@ -29,11 +29,7 @@ df = cargar_datos()
 def interpretar_ubicacion(codigo):
     partes = str(codigo).strip().upper().split("-")
 
-    almacen_map = {
-        "A": "Álamos",
-        "B": "Balboa"
-    }
-
+    almacen_map = {"A": "Álamos", "B": "Balboa"}
     almacen = almacen_map.get(partes[0], partes[0])
 
     # ANAQUEL
@@ -99,31 +95,49 @@ def buscar(query):
 # -------------------------
 st.title("🔎 WMS Buscador de Ubicaciones")
 
-# 📷 ESCÁNER WEB
-st.subheader("📷 Escanear código")
+# 🔍 BARRA + BOTÓN
+col1, col2 = st.columns([4,1])
 
-components.html("""
-<div id="reader" style="width:300px"></div>
+with col1:
+    query = st.text_input("🔍 Buscar producto", key="busqueda")
 
-<script src="https://unpkg.com/html5-qrcode"></script>
-<script>
-function onScanSuccess(decodedText) {
-    const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-    if (inputs.length > 0) {
-        inputs[0].value = decodedText;
-        inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+with col2:
+    activar_scan = st.button("📷")
+
+# -------------------------
+# ESCÁNER (SOLO SI SE ACTIVA)
+# -------------------------
+if activar_scan:
+    components.html("""
+    <div id="reader" style="width:100%"></div>
+
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+    function onScanSuccess(decodedText) {
+        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+        if (inputs.length > 0) {
+            inputs[0].value = decodedText;
+            inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+        }
     }
-}
 
-let html5QrcodeScanner = new Html5QrcodeScanner(
-    "reader", { fps: 10, qrbox: 250 });
+    const config = {
+        fps: 10,
+        qrbox: {width: 250, height: 150},
+        videoConstraints: {
+            facingMode: "environment" // 🔥 cámara trasera
+        }
+    };
 
-html5QrcodeScanner.render(onScanSuccess);
-</script>
-""", height=400)
+    const html5QrcodeScanner = new Html5Qrcode("reader");
 
-# 🔍 BUSCADOR
-query = st.text_input("🔍 Buscar producto")
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        onScanSuccess
+    );
+    </script>
+    """, height=300)
 
 # -------------------------
 # RESULTADOS
