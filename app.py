@@ -123,46 +123,46 @@ with col2:
 # -------------------------
 if activar_scan:
     components.html("""
-    <div id="reader" style="width:100vw; height:100vh;"></div>
+    <div style="width:100vw; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <video id="video" style="width:100%; height:auto;"></video>
+        <p id="status">📷 Escaneando...</p>
+    </div>
 
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <script>
-    function onScanSuccess(decodedText) {
-        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-        if (inputs.length > 0) {
-            inputs[0].value = decodedText;
-            inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
-        }
-    }
+    const codeReader = new ZXing.BrowserMultiFormatReader();
 
-    const html5QrcodeScanner = new Html5Qrcode("reader");
+    codeReader.listVideoInputDevices()
+        .then((videoInputDevices) => {
+            const backCamera = videoInputDevices.find(device =>
+                device.label.toLowerCase().includes('back') ||
+                device.label.toLowerCase().includes('rear')
+            ) || videoInputDevices[0];
 
-    html5QrcodeScanner.start(
-        { facingMode: { exact: "environment" } },
-        {
-            fps: 15,
-            qrbox: function(viewfinderWidth, viewfinderHeight) {
-                let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-                let boxSize = Math.floor(minEdge * 0.9);
-                return {
-                    width: boxSize,
-                    height: Math.floor(boxSize * 0.4)
-                };
-            },
-            aspectRatio: 1.777,
-            disableFlip: false,
-            formatsToSupport: [
-                Html5QrcodeSupportedFormats.CODE_128,
-                Html5QrcodeSupportedFormats.EAN_13,
-                Html5QrcodeSupportedFormats.EAN_8,
-                Html5QrcodeSupportedFormats.QR_CODE
-            ]
-        },
-        onScanSuccess
-    ).catch(err => {
-        console.log(err);
-    });
+            codeReader.decodeFromVideoDevice(backCamera.deviceId, 'video', (result, err) => {
+                if (result) {
+                    document.getElementById('status').innerText = "✅ Código detectado: " + result.text;
+
+                    // enviar a input de Streamlit
+                    const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+                    if (inputs.length > 0) {
+                        inputs[0].value = result.text;
+                        inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+                    }
+
+                    // vibración (móvil)
+                    if (navigator.vibrate) navigator.vibrate(200);
+
+                    // detener escáner
+                    codeReader.reset();
+                }
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            document.getElementById('status').innerText = "❌ Error de cámara";
+        });
     </script>
     """, height=650)
 
