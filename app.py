@@ -8,12 +8,6 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
-# SESSION STATE
-# -------------------------
-if "scan_value" not in st.session_state:
-    st.session_state.scan_value = ""
-
-# -------------------------
 # LOGO
 # -------------------------
 col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
@@ -113,28 +107,21 @@ with colf2:
     filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
 # -------------------------
-# BUSCADOR (SIN KEY)
+# BUSCADOR + ESCÁNER
 # -------------------------
 col1, col2 = st.columns([4,1])
 
-# 🔥 SI VIENE DEL ESCÁNER
-if st.session_state.scan_value:
-    query = st.session_state.scan_value
-    st.session_state.scan_value = ""
-else:
-    query = ""
-
 with col1:
-    query = st.text_input("🔍 Buscar producto", value=query)
+    query = st.text_input("🔍 Buscar producto")
 
 with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER ZXING
+# ESCÁNER ZXING (FINAL)
 # -------------------------
 if activar_scan:
-    result = components.html("""
+    components.html("""
     <video id="video" style="width:100%; height:auto;"></video>
 
     <script src="https://unpkg.com/@zxing/library@latest"></script>
@@ -152,10 +139,13 @@ if activar_scan:
             if (result) {
                 const code = result.text;
 
-                window.parent.postMessage(
-                    { isStreamlitMessage: true, type: "streamlit:setComponentValue", value: code },
-                    "*"
-                );
+                // 🔥 INYECTAR AL INPUT DE STREAMLIT
+                const input = window.parent.document.querySelector('input');
+
+                if (input) {
+                    input.value = code;
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                }
 
                 if (navigator.vibrate) navigator.vibrate(150);
 
@@ -167,10 +157,6 @@ if activar_scan:
     startScanner();
     </script>
     """, height=500)
-
-    if result:
-        st.session_state.scan_value = result
-        st.rerun()
 
 # -------------------------
 # FILTRADO
