@@ -1,186 +1,204 @@
 import streamlit as st
 import pandas as pd
-from PIL import Image
+import streamlit.components.v1 as components
 
-# Scanner
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
-import cv2
-from pyzbar import pyzbar
-
-# =========================
+# -------------------------
 # CONFIG
-# =========================
-st.set_page_config(page_title="WMS Santuzi", layout="wide")
+# -------------------------
+st.set_page_config(page_title="WMS Buscador", layout="centered")
 
-# =========================
+# -------------------------
 # LOGO CENTRADO
-# =========================
-col1, col2, col3 = st.columns([1,2,1])
-with col2:
+# -------------------------
+col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
+
+with col_logo2:
     st.image("logo.jpg", width=220)
 
-st.title("🔍 Buscador de Ubicaciones")
+st.title("🔎 WMS Buscador de Ubicaciones")
 
-# =========================
-# CARGA OPTIMIZADA
-# =========================
+# -------------------------
+# INTERPRETAR UBICACIÓN
+# -------------------------
+def interpretar_ubicacion(codigo):
+    partes = str(codigo).strip().upper().split("-")
+
+    almacen_map = {"A": "Álamos", "B": "Balboa"}
+    almacen = almacen_map.get(partes[0], partes[0])
+
+    anaquel_raw = partes[1] if len(partes) > 1 else ""
+    if anaquel_raw == "AR":
+        anaquel = "Sin anaquel"
+    elif anaquel_raw.startswith("A"):
+        anaquel = f"Anaquel {anaquel_raw[1:]}"
+    elif anaquel_raw.startswith("P"):
+        anaquel = f"Panel {anaquel_raw[1:]}"
+    else:
+        anaquel = anaquel_raw
+
+    piso_raw = partes[2] if len(partes) > 2 else ""
+    if piso_raw == "AR":
+        piso = "Arriba"
+    elif piso_raw == "00":
+        piso = "Sin piso"
+    elif piso_raw.startswith("P"):
+        piso = f"Piso {piso_raw[1:]}"
+    else:
+        piso = piso_raw
+
+    caja_raw = partes[3] if len(partes) > 3 else ""
+
+    if caja_raw == "00":
+        caja = "Sin caja"
+    elif caja_raw.startswith("CM"):
+        caja = f"Caja Mediana {caja_raw[2:]}"
+    elif caja_raw.startswith("MG"):
+        caja = f"Mini Gaveta {caja_raw[2:]}"
+    elif caja_raw.startswith("GM"):
+        caja = f"Gaveta Mediana {caja_raw[2:]}"
+    elif caja_raw.startswith("G"):
+        caja = f"Gaveta {caja_raw[1:]}"
+    elif caja_raw.startswith("C"):
+        caja = f"Caja {caja_raw[1:]}"
+    else:
+        caja = caja_raw.capitalize()
+
+    return almacen, anaquel, piso, caja
+
+# -------------------------
+# CARGA DE DATOS (OPTIMIZADA)
+# -------------------------
 @st.cache_data
 def cargar_datos():
     df = pd.read_excel("inventario.xlsx")
     df.columns = df.columns.str.strip()
-    df["Clave"] = df["Clave"].astype(str).str.upper()
-    df["Descripción"] = df["Descripción"].astype(str)
-    df["Ubicación"] = df["Ubicación"].astype(str).str.upper()
-    df["Almacén"] = df["Almacén"].astype(str).str.upper()
+
+    df["Clave"] = df["Clave"].astype(str).str.strip().str.upper()
+    df["Descripción"] = df["Descripción"].astype(str).str.strip()
+    df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
+
+    # 🔥 PROCESAR UNA SOLA VEZ
+    df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
+        lambda x: pd.Series(interpretar_ubicacion(x))
+    )
+
     return df
 
 df = cargar_datos()
 
-# =========================
-# INTERPRETAR UBICACIÓN
-# =========================
-def interpretar_ubicacion(ubicacion):
-    try:
-        partes = ubicacion.split("-")
+# -------------------------
+# BOTÓN RECARGAR
+# -------------------------
+if st.button("🔄 Recargar datos"):
+    st.cache_data.clear()
+    st.rerun()
 
-        almacen = "Álamos" if partes[0] == "A" else "Balboa"
-
-        anaquel_raw = partes[1]
-        piso_raw = partes[2]
-        caja_raw = partes[3] if len(partes) > 3 else "00"
-
-        # ANAQUEL
-        if anaquel_raw == "AR":
-            anaquel = "Sin anaquel"
-        elif anaquel_raw.startswith("A"):
-            anaquel = f"Anaquel {anaquel_raw[1:]}"
-        elif anaquel_raw.startswith("P"):
-            anaquel = f"Panel {anaquel_raw[1:]}"
-        else:
-            anaquel = anaquel_raw
-
-        # PISO
-        if piso_raw == "AR":
-            piso = "Arriba"
-        elif piso_raw == "00":
-            piso = "Sin piso"
-        else:
-            piso = f"Piso {piso_raw[1:]}"
-
-        # CAJA
-        if caja_raw == "00":
-            caja = "Sin caja"
-        elif caja_raw.startswith("C"):
-            caja = f"Caja {caja_raw[1:]}"
-        elif caja_raw.startswith("G"):
-            caja = f"Gaveta {caja_raw[1:]}"
-        elif caja_raw.startswith("MG"):
-            caja = f"Mini Gaveta {caja_raw[2:]}"
-        elif caja_raw.startswith("GM"):
-            caja = f"Gaveta Mediana {caja_raw[2:]}"
-        elif caja_raw.startswith("CM"):
-            caja = f"Caja Mediana {caja_raw[2:]}"
-        else:
-            caja = caja_raw
-
-        return almacen, anaquel, piso, caja
-
-    except:
-        return "-", "-", "-", "-"
-
-# =========================
+# -------------------------
 # FILTROS
-# =========================
+# -------------------------
+st.subheader("🎛️ Filtros")
+
 colf1, colf2 = st.columns(2)
 
 with colf1:
-    filtro_almacen = st.selectbox("Filtrar por almacén", ["Todos"] + list(df["Almacén"].unique()))
+    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique()))
+    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique()))
 
 with colf2:
-    filtro_tipo = st.selectbox("Filtrar por tipo", ["Todos", "Anaquel", "Panel", "Gaveta", "Caja"])
+    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique()))
+    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
-# =========================
-# BUSCADOR
-# =========================
-busqueda = st.text_input("Buscar producto, ubicación o escanear código", key="busqueda")
+# -------------------------
+# BUSCADOR + ESCÁNER
+# -------------------------
+col1, col2 = st.columns([4,1])
 
-# =========================
-# SCANNER MEJORADO
-# =========================
-class Scanner(VideoTransformerBase):
-    def __init__(self):
-        self.last_code = ""
+with col1:
+    query = st.text_input("🔍 Buscar producto")
 
-    def transform(self, frame):
-        img = frame.to_ndarray(format="bgr24")
-        barcodes = pyzbar.decode(img)
+with col2:
+    activar_scan = st.button("📷")
 
-        for barcode in barcodes:
-            x, y, w, h = barcode.rect
-            cv2.rectangle(img, (x,y), (x+w,y+h), (0,255,0), 2)
+# -------------------------
+# ESCÁNER WEB (RÁPIDO)
+# -------------------------
+if activar_scan:
+    components.html("""
+    <div id="reader" style="width:100%"></div>
 
-            code = barcode.data.decode("utf-8")
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+    function onScanSuccess(decodedText) {
+        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+        if (inputs.length > 0) {
+            inputs[0].value = decodedText;
+            inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    }
 
-            if code != self.last_code:
-                self.last_code = code
-                st.session_state["busqueda"] = code
+    const html5QrcodeScanner = new Html5Qrcode("reader");
 
-            cv2.putText(img, code, (x,y-10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6, (0,255,0), 2)
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: {width: 250, height: 150} },
+        onScanSuccess
+    );
+    </script>
+    """, height=300)
 
-        return img
+# -------------------------
+# FILTRADO
+# -------------------------
+df_filtrado = df.copy()
 
-if st.button("📷 Escanear"):
-    webrtc_streamer(
-        key="scanner",
-        video_processor_factory=Scanner,
-        media_stream_constraints={
-            "video": {"facingMode": {"ideal": "environment"}},
-            "audio": False,
-        },
-    )
-
-# =========================
-# FILTRAR DATOS
-# =========================
-if busqueda:
-    df_filtrado = df[
-        df.apply(lambda row: busqueda.lower() in str(row).lower(), axis=1)
-    ]
-else:
-    df_filtrado = df
-
-# filtro almacén
 if filtro_almacen != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Almacén"] == filtro_almacen]
 
-# =========================
-# RESULTADOS
-# =========================
-st.markdown(f"### Resultados: {len(df_filtrado)}")
+if filtro_anaquel != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Anaquel"] == filtro_anaquel]
 
-# =========================
-# TARJETAS BONITAS
-# =========================
-for _, row in df_filtrado.iterrows():
+if filtro_piso != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Piso"] == filtro_piso]
 
-    almacen, anaquel, piso, caja = interpretar_ubicacion(row["Ubicación"])
+if filtro_caja != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
-    st.markdown(f"""
-    <div style="
-        background-color:#1e1e1e;
-        padding:15px;
-        border-radius:15px;
-        margin-bottom:10px;
-        border:1px solid #333;
-    ">
-        <h4 style="margin:0; color:white;">🔩 {row['Clave']}</h4>
-        <p style="margin:0; color:#ccc;">{row['Descripción']}</p>
-        <hr>
-        <p style="margin:0;">📍 <b>{almacen}</b></p>
-        <p style="margin:0;">🗄 {anaquel}</p>
-        <p style="margin:0;">📦 {piso}</p>
-        <p style="margin:0;">📦 {caja}</p>
-    </div>
-    """, unsafe_allow_html=True)
+# -------------------------
+# BÚSQUEDA OPTIMIZADA
+# -------------------------
+if query and len(query) >= 2:
+    query = query.lower()
+
+    df_filtrado = df_filtrado[
+        df_filtrado["Clave"].str.lower().str.contains(query, na=False) |
+        df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
+    ]
+
+# 🔥 LIMITAR RESULTADOS (CLAVE)
+MAX_RESULTADOS = 50
+df_filtrado = df_filtrado.head(MAX_RESULTADOS)
+
+# -------------------------
+# RESULTADOS (RÁPIDOS)
+# -------------------------
+if not df_filtrado.empty:
+    st.success(f"Resultados: {len(df_filtrado)}")
+
+    for row in df_filtrado.itertuples():
+        st.markdown("---")
+
+        st.markdown(f"### 🔩 {row.Clave}")
+        st.write(row.Descripción)
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.info(f"📍 {row.Almacén}")
+            st.info(f"🗄 {row.Anaquel}")
+
+        with col2:
+            st.success(f"📦 {row.Piso}")
+            st.success(f"📦 {row.Caja}")
+
+else:
+    st.warning("Sin resultados")
