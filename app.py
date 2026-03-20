@@ -91,13 +91,6 @@ def cargar_datos():
 df = cargar_datos()
 
 # -------------------------
-# BOTÓN RECARGAR
-# -------------------------
-if st.button("🔄 Recargar datos"):
-    st.cache_data.clear()
-    st.rerun()
-
-# -------------------------
 # FILTROS
 # -------------------------
 st.subheader("🎛️ Filtros")
@@ -113,7 +106,7 @@ with colf2:
     filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
 # -------------------------
-# BUSCADOR + ESCÁNER
+# BUSCADOR + BOTÓN ESCÁNER
 # -------------------------
 col1, col2 = st.columns([4,1])
 
@@ -124,15 +117,56 @@ with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER WEB (FUNCIONAL)
+# ESCÁNER PRO (FULL SCREEN)
 # -------------------------
 if activar_scan:
     components.html("""
-    <div id="reader" style="width:100%"></div>
+    <style>
+    #reader {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: black;
+        z-index: 9999;
+    }
+
+    #closeBtn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 10000;
+        background: red;
+        color: white;
+        border: none;
+        padding: 10px;
+        font-size: 16px;
+    }
+
+    #flash {
+        position: fixed;
+        top:0;
+        left:0;
+        width:100%;
+        height:100%;
+        background:rgba(0,255,0,0.3);
+        display:none;
+        z-index:10001;
+    }
+    </style>
+
+    <button id="closeBtn" onclick="cerrar()">✖</button>
+    <div id="flash"></div>
+    <div id="reader"></div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script>
+    function cerrar(){
+        window.parent.location.reload();
+    }
+
     function onScanSuccess(decodedText) {
 
         // Vibración (Android)
@@ -140,18 +174,23 @@ if activar_scan:
             navigator.vibrate([100,50,100]);
         }
 
+        // Flash visual (iOS friendly)
+        const flash = document.getElementById("flash");
+        flash.style.display = "block";
+        setTimeout(()=>flash.style.display="none",200);
+
+        // Meter valor al input
         const input = window.parent.document.querySelector('input[type="text"]');
 
         if (input) {
             input.value = decodedText;
-
             input.dispatchEvent(new Event("input", { bubbles: true }));
-
-            // 🔥 RECARGA PARA EJECUTAR BÚSQUEDA
-            setTimeout(() => {
-                window.parent.location.reload();
-            }, 300);
         }
+
+        // Cerrar scanner automáticamente
+        setTimeout(() => {
+            window.parent.location.reload();
+        }, 500);
     }
 
     const html5QrcodeScanner = new Html5Qrcode("reader");
@@ -159,13 +198,13 @@ if activar_scan:
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         {
-            fps: 25,
+            fps: 30,
             qrbox: { width: 300, height: 150 }
         },
         onScanSuccess
     );
     </script>
-    """, height=320)
+    """, height=0)
 
 # -------------------------
 # FILTRADO
@@ -185,11 +224,11 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA
+# BÚSQUEDA EN VIVO
 # -------------------------
 query = st.session_state.get("busqueda", "")
 
-if query and len(query) >= 2:
+if query:
     query_low = query.lower()
 
     df_filtrado = df_filtrado[
@@ -198,13 +237,10 @@ if query and len(query) >= 2:
     ]
 
 # -------------------------
-# LIMITAR RESULTADOS
+# RESULTADOS
 # -------------------------
 df_filtrado = df_filtrado.head(50)
 
-# -------------------------
-# RESULTADOS
-# -------------------------
 if not df_filtrado.empty:
     st.success(f"Resultados: {len(df_filtrado)}")
 
