@@ -65,7 +65,7 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# CARGA DE DATOS
+# DATA
 # -------------------------
 @st.cache_data
 def cargar_datos():
@@ -85,29 +85,7 @@ def cargar_datos():
 df = cargar_datos()
 
 # -------------------------
-# BOTÓN RECARGAR
-# -------------------------
-if st.button("🔄 Recargar datos"):
-    st.cache_data.clear()
-    st.rerun()
-
-# -------------------------
-# FILTROS
-# -------------------------
-st.subheader("🎛️ Filtros")
-
-colf1, colf2 = st.columns(2)
-
-with colf1:
-    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique()))
-    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique()))
-
-with colf2:
-    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique()))
-    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
-
-# -------------------------
-# BUSCADOR + ESCÁNER
+# BUSCADOR
 # -------------------------
 col1, col2 = st.columns([4,1])
 
@@ -115,46 +93,57 @@ with col1:
     query = st.text_input("🔍 Buscar producto")
 
 with col2:
-    activar_scan = st.button("📷")
+    activar_scan = st.button("📷 Escanear")
 
 # -------------------------
-# ESCÁNER ZXING (FINAL)
+# ESCÁNER (FIX REAL)
 # -------------------------
 if activar_scan:
     components.html("""
-    <video id="video" style="width:100%; height:auto;"></video>
+    <div style="text-align:center;">
+        <video id="video" style="width:100%; max-width:400px;"></video>
+        <p>📷 Apunta al código de barras</p>
+    </div>
 
     <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <script>
-    const codeReader = new ZXing.BrowserMultiFormatReader({
-        delayBetweenScanAttempts: 50
-    });
+    const codeReader = new ZXing.BrowserMultiFormatReader();
 
-    async function startScanner() {
-        const devices = await codeReader.listVideoInputDevices();
-        const selectedDevice = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
+    async function start() {
+        try {
+            await codeReader.decodeFromConstraints(
+                {
+                    video: {
+                        facingMode: "environment"
+                    }
+                },
+                'video',
+                (result, err) => {
+                    if (result) {
+                        const code = result.text;
 
-        codeReader.decodeFromVideoDevice(selectedDevice.deviceId, 'video', (result, err) => {
-            if (result) {
-                const code = result.text;
+                        // 🔥 ESCRIBIR EN INPUT STREAMLIT
+                        const input = window.parent.document.querySelector('input');
 
-                // 🔥 INYECTAR AL INPUT DE STREAMLIT
-                const input = window.parent.document.querySelector('input');
+                        if (input) {
+                            input.value = code;
+                            input.dispatchEvent(new Event("input", { bubbles: true }));
+                        }
 
-                if (input) {
-                    input.value = code;
-                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                        // vibración
+                        if (navigator.vibrate) navigator.vibrate(200);
+
+                        codeReader.reset();
+                    }
                 }
-
-                if (navigator.vibrate) navigator.vibrate(150);
-
-                codeReader.reset();
-            }
-        });
+            );
+        } catch (e) {
+            document.body.innerHTML += "<p style='color:red;'>Error cámara: " + e + "</p>";
+        }
     }
 
-    startScanner();
+    start();
     </script>
     """, height=500)
 
@@ -163,21 +152,6 @@ if activar_scan:
 # -------------------------
 df_filtrado = df.copy()
 
-if filtro_almacen != "Todos":
-    df_filtrado = df_filtrado[df_filtrado["Almacén"] == filtro_almacen]
-
-if filtro_anaquel != "Todos":
-    df_filtrado = df_filtrado[df_filtrado["Anaquel"] == filtro_anaquel]
-
-if filtro_piso != "Todos":
-    df_filtrado = df_filtrado[df_filtrado["Piso"] == filtro_piso]
-
-if filtro_caja != "Todos":
-    df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
-
-# -------------------------
-# BÚSQUEDA
-# -------------------------
 if query:
     query = query.lower()
 
@@ -196,17 +170,14 @@ if not df_filtrado.empty:
 
     for row in df_filtrado.itertuples():
         st.markdown("---")
-
         st.markdown(f"### 🔩 {row.Clave}")
         st.write(row.Descripción)
 
-        col1, col2 = st.columns(2)
-
-        with col1:
+        c1, c2 = st.columns(2)
+        with c1:
             st.info(f"📍 {row.Almacén}")
             st.info(f"🗄 {row.Anaquel}")
-
-        with col2:
+        with c2:
             st.success(f"📦 {row.Piso}")
             st.success(f"📦 {row.Caja}")
 
