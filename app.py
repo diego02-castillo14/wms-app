@@ -121,52 +121,25 @@ with col2:
 # -------------------------
 if activar_scan:
     components.html("""
-    <style>
-    #reader {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: black;
-        z-index: 9999;
-    }
+    <div style="position:relative; width:100%; max-width:400px; margin:auto;">
+        
+        <div id="reader" style="width:100%; border-radius:10px;"></div>
 
-    #closeBtn {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 10000;
-        background: red;
-        color: white;
-        border: none;
-        padding: 10px;
-        font-size: 16px;
-    }
+        <div id="overlay" style="
+            position:absolute;
+            top:20%;
+            left:10%;
+            width:80%;
+            height:30%;
+            border:3px solid #00FF00;
+            border-radius:10px;
+        "></div>
 
-    #flash {
-        position: fixed;
-        top:0;
-        left:0;
-        width:100%;
-        height:100%;
-        background:rgba(0,255,0,0.3);
-        display:none;
-        z-index:10001;
-    }
-    </style>
-
-    <button id="closeBtn" onclick="cerrar()">✖</button>
-    <div id="flash"></div>
-    <div id="reader"></div>
+    </div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script>
-    function cerrar(){
-        window.parent.location.reload();
-    }
-
     function onScanSuccess(decodedText) {
 
         // Vibración (Android)
@@ -174,12 +147,12 @@ if activar_scan:
             navigator.vibrate([100,50,100]);
         }
 
-        // Flash visual (iOS friendly)
-        const flash = document.getElementById("flash");
-        flash.style.display = "block";
-        setTimeout(()=>flash.style.display="none",200);
+        // Flash visual (iPhone)
+        document.body.style.backgroundColor = "#00FF0033";
+        setTimeout(() => {
+            document.body.style.backgroundColor = "";
+        }, 150);
 
-        // Meter valor al input
         const input = window.parent.document.querySelector('input[type="text"]');
 
         if (input) {
@@ -187,10 +160,10 @@ if activar_scan:
             input.dispatchEvent(new Event("input", { bubbles: true }));
         }
 
-        // Cerrar scanner automáticamente
+        // Cerrar escáner
         setTimeout(() => {
             window.parent.location.reload();
-        }, 500);
+        }, 400);
     }
 
     const html5QrcodeScanner = new Html5Qrcode("reader");
@@ -198,13 +171,13 @@ if activar_scan:
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         {
-            fps: 30,
-            qrbox: { width: 300, height: 150 }
+            fps: 20,
+            qrbox: { width: 250, height: 120 }
         },
         onScanSuccess
     );
     </script>
-    """, height=0)
+    """, height=350)
 
 # -------------------------
 # FILTRADO
