@@ -66,7 +66,7 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# CARGA DE DATOS (OPTIMIZADA)
+# CARGA DE DATOS
 # -------------------------
 @st.cache_data
 def cargar_datos():
@@ -77,7 +77,6 @@ def cargar_datos():
     df["Descripción"] = df["Descripción"].astype(str).str.strip()
     df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
 
-    # 🔥 PROCESAR UNA SOLA VEZ
     df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
         lambda x: pd.Series(interpretar_ubicacion(x))
     )
@@ -120,13 +119,14 @@ with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER WEB (RÁPIDO)
+# ESCÁNER MEJORADO (MÓVIL)
 # -------------------------
 if activar_scan:
     components.html("""
-    <div id="reader" style="width:100%"></div>
+    <div id="reader" style="width:100vw; height:100vh;"></div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
+
     <script>
     function onScanSuccess(decodedText) {
         const inputs = window.parent.document.querySelectorAll('input[type="text"]');
@@ -139,12 +139,32 @@ if activar_scan:
     const html5QrcodeScanner = new Html5Qrcode("reader");
 
     html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: {width: 250, height: 150} },
+        { facingMode: { exact: "environment" } },
+        {
+            fps: 15,
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                let minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                let boxSize = Math.floor(minEdge * 0.9);
+                return {
+                    width: boxSize,
+                    height: Math.floor(boxSize * 0.4)
+                };
+            },
+            aspectRatio: 1.777,
+            disableFlip: false,
+            formatsToSupport: [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.QR_CODE
+            ]
+        },
         onScanSuccess
-    );
+    ).catch(err => {
+        console.log(err);
+    });
     </script>
-    """, height=300)
+    """, height=650)
 
 # -------------------------
 # FILTRADO
@@ -164,7 +184,7 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA OPTIMIZADA
+# BÚSQUEDA
 # -------------------------
 if query and len(query) >= 2:
     query = query.lower()
@@ -174,12 +194,11 @@ if query and len(query) >= 2:
         df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
     ]
 
-# 🔥 LIMITAR RESULTADOS (CLAVE)
 MAX_RESULTADOS = 50
 df_filtrado = df_filtrado.head(MAX_RESULTADOS)
 
 # -------------------------
-# RESULTADOS (RÁPIDOS)
+# RESULTADOS
 # -------------------------
 if not df_filtrado.empty:
     st.success(f"Resultados: {len(df_filtrado)}")
