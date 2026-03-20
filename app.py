@@ -8,10 +8,15 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
+# SESSION STATE
+# -------------------------
+if "busqueda" not in st.session_state:
+    st.session_state.busqueda = ""
+
+# -------------------------
 # LOGO CENTRADO
 # -------------------------
 col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
-
 with col_logo2:
     st.image("logo.jpg", width=220)
 
@@ -66,7 +71,7 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# CARGA DE DATOS (OPTIMIZADA)
+# CARGA DE DATOS
 # -------------------------
 @st.cache_data
 def cargar_datos():
@@ -77,7 +82,6 @@ def cargar_datos():
     df["Descripción"] = df["Descripción"].astype(str).str.strip()
     df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
 
-    # 🔥 PROCESAR UNA SOLA VEZ
     df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
         lambda x: pd.Series(interpretar_ubicacion(x))
     )
@@ -114,13 +118,13 @@ with colf2:
 col1, col2 = st.columns([4,1])
 
 with col1:
-    query = st.text_input("🔍 Buscar producto")
+    query = st.text_input("🔍 Buscar producto", key="busqueda")
 
 with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER WEB (RÁPIDO + AUTO BUSCAR + VIBRACIÓN)
+# ESCÁNER WEB (FUNCIONAL)
 # -------------------------
 if activar_scan:
     components.html("""
@@ -131,29 +135,22 @@ if activar_scan:
     <script>
     function onScanSuccess(decodedText) {
 
-        // Vibración (solo móviles compatibles)
+        // Vibración (Android)
         if (navigator.vibrate) {
-            navigator.vibrate(200);
+            navigator.vibrate([100,50,100]);
         }
 
-        // Meter valor en input
-        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-        if (inputs.length > 0) {
-            let input = inputs[0];
+        const input = window.parent.document.querySelector('input[type="text"]');
 
+        if (input) {
             input.value = decodedText;
 
-            // 🔥 FORZAR EVENTOS PARA STREAMLIT
             input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
 
-            // 🔥 SIMULAR ENTER (CLAVE)
-            let enterEvent = new KeyboardEvent("keydown", {
-                bubbles: true,
-                cancelable: true,
-                keyCode: 13
-            });
-            input.dispatchEvent(enterEvent);
+            // 🔥 RECARGA PARA EJECUTAR BÚSQUEDA
+            setTimeout(() => {
+                window.parent.location.reload();
+            }, 300);
         }
     }
 
@@ -162,9 +159,8 @@ if activar_scan:
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         {
-            fps: 20,  // 🔥 MÁS RÁPIDO
-            qrbox: { width: 280, height: 150 }, // 🔥 MEJOR ÁREA
-            aspectRatio: 1.7778
+            fps: 25,
+            qrbox: { width: 300, height: 150 }
         },
         onScanSuccess
     );
@@ -189,22 +185,25 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA OPTIMIZADA
+# BÚSQUEDA
 # -------------------------
+query = st.session_state.get("busqueda", "")
+
 if query and len(query) >= 2:
-    query = query.lower()
+    query_low = query.lower()
 
     df_filtrado = df_filtrado[
-        df_filtrado["Clave"].str.lower().str.contains(query, na=False) |
-        df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
+        df_filtrado["Clave"].str.lower().str.contains(query_low, na=False) |
+        df_filtrado["Descripción"].str.lower().str.contains(query_low, na=False)
     ]
 
-# 🔥 LIMITAR RESULTADOS (CLAVE)
-MAX_RESULTADOS = 50
-df_filtrado = df_filtrado.head(MAX_RESULTADOS)
+# -------------------------
+# LIMITAR RESULTADOS
+# -------------------------
+df_filtrado = df_filtrado.head(50)
 
 # -------------------------
-# RESULTADOS (RÁPIDOS)
+# RESULTADOS
 # -------------------------
 if not df_filtrado.empty:
     st.success(f"Resultados: {len(df_filtrado)}")
