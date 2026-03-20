@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
+import json
 
 # -------------------------
 # CONFIG
@@ -8,14 +9,19 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
-# LOGO CENTRADO
+# LOGO
 # -------------------------
 col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
-
 with col_logo2:
     st.image("logo.jpg", width=220)
 
 st.title("🔎 WMS Buscador de Ubicaciones")
+
+# -------------------------
+# SESSION STATE
+# -------------------------
+if "scan_value" not in st.session_state:
+    st.session_state.scan_value = ""
 
 # -------------------------
 # INTERPRETAR UBICACIÓN
@@ -108,7 +114,7 @@ with colf2:
     filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
 # -------------------------
-# BUSCADOR + ESCÁNER
+# BUSCADOR
 # -------------------------
 col1, col2 = st.columns([4,1])
 
@@ -118,59 +124,55 @@ with col1:
 with col2:
     activar_scan = st.button("📷")
 
+# 🔥 SI VIENE DEL ESCÁNER → FORZAR BÚSQUEDA
+if st.session_state.scan_value:
+    query = st.session_state.scan_value
+    st.session_state.buscador = query
+    st.session_state.scan_value = ""
+
 # -------------------------
-# ESCÁNER ZXING (CORREGIDO)
+# ESCÁNER ZXING (RÁPIDO)
 # -------------------------
 if activar_scan:
-    components.html("""
-    <div style="width:100vw; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-        <video id="video" style="width:100%; height:auto;"></video>
-        <p id="status">📷 Escaneando...</p>
-    </div>
+    result = components.html("""
+    <video id="video" style="width:100%; height:auto;"></video>
 
     <script src="https://unpkg.com/@zxing/library@latest"></script>
 
     <script>
-    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const codeReader = new ZXing.BrowserMultiFormatReader({
+        delayBetweenScanAttempts: 30
+    });
 
-    codeReader.listVideoInputDevices()
-        .then((videoInputDevices) => {
-            const backCamera = videoInputDevices.find(device =>
-                device.label.toLowerCase().includes('back') ||
-                device.label.toLowerCase().includes('rear')
-            ) || videoInputDevices[0];
+    async function startScanner() {
+        const devices = await codeReader.listVideoInputDevices();
+        const selectedDevice = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
 
-            codeReader.decodeFromVideoDevice(backCamera.deviceId, 'video', (result, err) => {
-                if (result) {
-                    document.getElementById('status').innerText = "✅ Código: " + result.text;
+        codeReader.decodeFromVideoDevice(selectedDevice.deviceId, 'video', (result, err) => {
+            if (result) {
+                const code = result.text;
 
-                    const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+                // enviar valor a streamlit
+                window.parent.postMessage(
+                    { isStreamlitMessage: true, type: "streamlit:setComponentValue", value: code },
+                    "*"
+                );
 
-                    if (inputs.length > 0) {
-                        const input = inputs[0];
+                if (navigator.vibrate) navigator.vibrate(150);
 
-                        input.value = result.text;
-
-                        // 🔥 EVENTOS CORREGIDOS
-                        input.dispatchEvent(new Event("input", { bubbles: true }));
-                        input.dispatchEvent(new Event("change", { bubbles: true }));
-                        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
-
-                        input.focus();
-                    }
-
-                    if (navigator.vibrate) navigator.vibrate(200);
-
-                    codeReader.reset();
-                }
-            });
-        })
-        .catch(err => {
-            console.error(err);
-            document.getElementById('status').innerText = "❌ Error de cámara";
+                codeReader.reset();
+            }
         });
+    }
+
+    startScanner();
     </script>
-    """, height=650)
+    """, height=500)
+
+    # 🔥 RECIBIR RESULTADO REAL
+    if result:
+        st.session_state.scan_value = result
+        st.rerun()
 
 # -------------------------
 # FILTRADO
@@ -190,7 +192,7 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA (CORREGIDA)
+# BÚSQUEDA (SIN FALLAS)
 # -------------------------
 if query:
     query = query.lower()
@@ -200,8 +202,7 @@ if query:
         df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
     ]
 
-MAX_RESULTADOS = 50
-df_filtrado = df_filtrado.head(MAX_RESULTADOS)
+df_filtrado = df_filtrado.head(50)
 
 # -------------------------
 # RESULTADOS
