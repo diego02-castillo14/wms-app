@@ -113,13 +113,13 @@ with colf2:
 col1, col2 = st.columns([4,1])
 
 with col1:
-    query = st.text_input("🔍 Buscar producto")
+    query = st.text_input("🔍 Buscar producto", key="buscador")
 
 with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER MEJORADO (MÓVIL)
+# ESCÁNER ZXING (CORREGIDO)
 # -------------------------
 if activar_scan:
     components.html("""
@@ -142,19 +142,25 @@ if activar_scan:
 
             codeReader.decodeFromVideoDevice(backCamera.deviceId, 'video', (result, err) => {
                 if (result) {
-                    document.getElementById('status').innerText = "✅ Código detectado: " + result.text;
+                    document.getElementById('status').innerText = "✅ Código: " + result.text;
 
-                    // enviar a input de Streamlit
                     const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+
                     if (inputs.length > 0) {
-                        inputs[0].value = result.text;
-                        inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+                        const input = inputs[0];
+
+                        input.value = result.text;
+
+                        // 🔥 EVENTOS CORREGIDOS
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+                        input.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+
+                        input.focus();
                     }
 
-                    // vibración (móvil)
                     if (navigator.vibrate) navigator.vibrate(200);
 
-                    // detener escáner
                     codeReader.reset();
                 }
             });
@@ -184,9 +190,9 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA
+# BÚSQUEDA (CORREGIDA)
 # -------------------------
-if query and len(query) >= 2:
+if query:
     query = query.lower()
 
     df_filtrado = df_filtrado[
