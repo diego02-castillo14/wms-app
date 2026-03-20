@@ -1,12 +1,22 @@
 import streamlit as st
 import pandas as pd
 import streamlit.components.v1 as components
-import json
 
 # -------------------------
 # CONFIG
 # -------------------------
 st.set_page_config(page_title="WMS Buscador", layout="centered")
+
+# -------------------------
+# SESSION STATE
+# -------------------------
+if "scan_value" not in st.session_state:
+    st.session_state.scan_value = ""
+
+# 🔥 ACTUALIZAR ANTES DEL INPUT (FIX ERROR)
+if st.session_state.scan_value:
+    st.session_state["buscador"] = st.session_state.scan_value
+    st.session_state.scan_value = ""
 
 # -------------------------
 # LOGO
@@ -16,12 +26,6 @@ with col_logo2:
     st.image("logo.jpg", width=220)
 
 st.title("🔎 WMS Buscador de Ubicaciones")
-
-# -------------------------
-# SESSION STATE
-# -------------------------
-if "scan_value" not in st.session_state:
-    st.session_state.scan_value = ""
 
 # -------------------------
 # INTERPRETAR UBICACIÓN
@@ -124,14 +128,8 @@ with col1:
 with col2:
     activar_scan = st.button("📷")
 
-# 🔥 SI VIENE DEL ESCÁNER → FORZAR BÚSQUEDA
-if st.session_state.scan_value:
-    query = st.session_state.scan_value
-    st.session_state.buscador = query
-    st.session_state.scan_value = ""
-
 # -------------------------
-# ESCÁNER ZXING (RÁPIDO)
+# ESCÁNER ZXING (FUNCIONAL)
 # -------------------------
 if activar_scan:
     result = components.html("""
@@ -141,7 +139,7 @@ if activar_scan:
 
     <script>
     const codeReader = new ZXing.BrowserMultiFormatReader({
-        delayBetweenScanAttempts: 30
+        delayBetweenScanAttempts: 50
     });
 
     async function startScanner() {
@@ -152,7 +150,6 @@ if activar_scan:
             if (result) {
                 const code = result.text;
 
-                // enviar valor a streamlit
                 window.parent.postMessage(
                     { isStreamlitMessage: true, type: "streamlit:setComponentValue", value: code },
                     "*"
@@ -169,7 +166,7 @@ if activar_scan:
     </script>
     """, height=500)
 
-    # 🔥 RECIBIR RESULTADO REAL
+    # 🔥 RECIBIR RESULTADO
     if result:
         st.session_state.scan_value = result
         st.rerun()
@@ -192,7 +189,7 @@ if filtro_caja != "Todos":
     df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
 
 # -------------------------
-# BÚSQUEDA (SIN FALLAS)
+# BÚSQUEDA
 # -------------------------
 if query:
     query = query.lower()
