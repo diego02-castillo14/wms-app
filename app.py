@@ -33,7 +33,7 @@ def interpretar_ubicacion(codigo):
 
     anaquel_raw = partes[1] if len(partes) > 1 else ""
     if anaquel_raw == "AR":
-        anaquel = "Sin anaquel"
+        anaquel = "Arriba en Local"
     elif anaquel_raw.startswith("A"):
         anaquel = f"Anaquel {anaquel_raw[1:]}"
     elif anaquel_raw.startswith("P"):
@@ -65,6 +65,8 @@ def interpretar_ubicacion(codigo):
         caja = f"Gaveta {caja_raw[1:]}"
     elif caja_raw.startswith("C"):
         caja = f"Caja {caja_raw[1:]}"
+    elif caja_raw.startswith("MEG"):
+        caja = f"Mega Gaveta {caja_raw[1:]}"
     else:
         caja = caja_raw.capitalize()
 
