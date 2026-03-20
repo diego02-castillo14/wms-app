@@ -13,11 +13,6 @@ st.set_page_config(page_title="WMS Buscador", layout="centered")
 if "scan_value" not in st.session_state:
     st.session_state.scan_value = ""
 
-# 🔥 ACTUALIZAR ANTES DEL INPUT (FIX ERROR)
-if st.session_state.scan_value:
-    st.session_state["buscador"] = st.session_state.scan_value
-    st.session_state.scan_value = ""
-
 # -------------------------
 # LOGO
 # -------------------------
@@ -118,18 +113,25 @@ with colf2:
     filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
 
 # -------------------------
-# BUSCADOR
+# BUSCADOR (SIN KEY)
 # -------------------------
 col1, col2 = st.columns([4,1])
 
+# 🔥 SI VIENE DEL ESCÁNER
+if st.session_state.scan_value:
+    query = st.session_state.scan_value
+    st.session_state.scan_value = ""
+else:
+    query = ""
+
 with col1:
-    query = st.text_input("🔍 Buscar producto", key="buscador")
+    query = st.text_input("🔍 Buscar producto", value=query)
 
 with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER ZXING (FUNCIONAL)
+# ESCÁNER ZXING
 # -------------------------
 if activar_scan:
     result = components.html("""
@@ -166,7 +168,6 @@ if activar_scan:
     </script>
     """, height=500)
 
-    # 🔥 RECIBIR RESULTADO
     if result:
         st.session_state.scan_value = result
         st.rerun()
