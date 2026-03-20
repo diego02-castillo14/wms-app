@@ -8,9 +8,10 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="WMS Buscador", layout="centered")
 
 # -------------------------
-# LOGO
+# LOGO CENTRADO
 # -------------------------
 col_logo1, col_logo2, col_logo3 = st.columns([1,2,1])
+
 with col_logo2:
     st.image("logo.jpg", width=220)
 
@@ -65,7 +66,7 @@ def interpretar_ubicacion(codigo):
     return almacen, anaquel, piso, caja
 
 # -------------------------
-# DATA
+# CARGA DE DATOS (OPTIMIZADA)
 # -------------------------
 @st.cache_data
 def cargar_datos():
@@ -76,6 +77,7 @@ def cargar_datos():
     df["Descripción"] = df["Descripción"].astype(str).str.strip()
     df["Ubicación"] = df["Ubicación"].astype(str).str.strip()
 
+    # 🔥 PROCESAR UNA SOLA VEZ
     df[["Almacén", "Anaquel", "Piso", "Caja"]] = df["Ubicación"].apply(
         lambda x: pd.Series(interpretar_ubicacion(x))
     )
@@ -85,7 +87,29 @@ def cargar_datos():
 df = cargar_datos()
 
 # -------------------------
-# BUSCADOR
+# BOTÓN RECARGAR
+# -------------------------
+if st.button("🔄 Recargar datos"):
+    st.cache_data.clear()
+    st.rerun()
+
+# -------------------------
+# FILTROS
+# -------------------------
+st.subheader("🎛️ Filtros")
+
+colf1, colf2 = st.columns(2)
+
+with colf1:
+    filtro_almacen = st.selectbox("Almacén", ["Todos"] + sorted(df["Almacén"].unique()))
+    filtro_anaquel = st.selectbox("Anaquel", ["Todos"] + sorted(df["Anaquel"].unique()))
+
+with colf2:
+    filtro_piso = st.selectbox("Piso", ["Todos"] + sorted(df["Piso"].unique()))
+    filtro_caja = st.selectbox("Caja / Gaveta", ["Todos"] + sorted(df["Caja"].unique()))
+
+# -------------------------
+# BUSCADOR + ESCÁNER
 # -------------------------
 col1, col2 = st.columns([4,1])
 
@@ -93,66 +117,56 @@ with col1:
     query = st.text_input("🔍 Buscar producto")
 
 with col2:
-    activar_scan = st.button("📷 Escanear")
+    activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER (FIX REAL)
+# ESCÁNER WEB (RÁPIDO)
 # -------------------------
 if activar_scan:
     components.html("""
-    <div style="text-align:center;">
-        <video id="video" style="width:100%; max-width:400px;"></video>
-        <p>📷 Apunta al código de barras</p>
-    </div>
+    <div id="reader" style="width:100%"></div>
 
-    <script src="https://unpkg.com/@zxing/library@latest"></script>
-
+    <script src="https://unpkg.com/html5-qrcode"></script>
     <script>
-    const codeReader = new ZXing.BrowserMultiFormatReader();
-
-    async function start() {
-        try {
-            await codeReader.decodeFromConstraints(
-                {
-                    video: {
-                        facingMode: "environment"
-                    }
-                },
-                'video',
-                (result, err) => {
-                    if (result) {
-                        const code = result.text;
-
-                        // 🔥 ESCRIBIR EN INPUT STREAMLIT
-                        const input = window.parent.document.querySelector('input');
-
-                        if (input) {
-                            input.value = code;
-                            input.dispatchEvent(new Event("input", { bubbles: true }));
-                        }
-
-                        // vibración
-                        if (navigator.vibrate) navigator.vibrate(200);
-
-                        codeReader.reset();
-                    }
-                }
-            );
-        } catch (e) {
-            document.body.innerHTML += "<p style='color:red;'>Error cámara: " + e + "</p>";
+    function onScanSuccess(decodedText) {
+        const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+        if (inputs.length > 0) {
+            inputs[0].value = decodedText;
+            inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
         }
     }
 
-    start();
+    const html5QrcodeScanner = new Html5Qrcode("reader");
+
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: {width: 250, height: 150} },
+        onScanSuccess
+    );
     </script>
-    """, height=500)
+    """, height=300)
 
 # -------------------------
 # FILTRADO
 # -------------------------
 df_filtrado = df.copy()
 
-if query:
+if filtro_almacen != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Almacén"] == filtro_almacen]
+
+if filtro_anaquel != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Anaquel"] == filtro_anaquel]
+
+if filtro_piso != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Piso"] == filtro_piso]
+
+if filtro_caja != "Todos":
+    df_filtrado = df_filtrado[df_filtrado["Caja"] == filtro_caja]
+
+# -------------------------
+# BÚSQUEDA OPTIMIZADA
+# -------------------------
+if query and len(query) >= 2:
     query = query.lower()
 
     df_filtrado = df_filtrado[
@@ -160,24 +174,29 @@ if query:
         df_filtrado["Descripción"].str.lower().str.contains(query, na=False)
     ]
 
-df_filtrado = df_filtrado.head(50)
+# 🔥 LIMITAR RESULTADOS (CLAVE)
+MAX_RESULTADOS = 50
+df_filtrado = df_filtrado.head(MAX_RESULTADOS)
 
 # -------------------------
-# RESULTADOS
+# RESULTADOS (RÁPIDOS)
 # -------------------------
 if not df_filtrado.empty:
     st.success(f"Resultados: {len(df_filtrado)}")
 
     for row in df_filtrado.itertuples():
         st.markdown("---")
+
         st.markdown(f"### 🔩 {row.Clave}")
         st.write(row.Descripción)
 
-        c1, c2 = st.columns(2)
-        with c1:
+        col1, col2 = st.columns(2)
+
+        with col1:
             st.info(f"📍 {row.Almacén}")
             st.info(f"🗄 {row.Anaquel}")
-        with c2:
+
+        with col2:
             st.success(f"📦 {row.Piso}")
             st.success(f"📦 {row.Caja}")
 
