@@ -120,19 +120,40 @@ with col2:
     activar_scan = st.button("📷")
 
 # -------------------------
-# ESCÁNER WEB (RÁPIDO)
+# ESCÁNER WEB (RÁPIDO + AUTO BUSCAR + VIBRACIÓN)
 # -------------------------
 if activar_scan:
     components.html("""
     <div id="reader" style="width:100%"></div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
+
     <script>
     function onScanSuccess(decodedText) {
+
+        // Vibración (solo móviles compatibles)
+        if (navigator.vibrate) {
+            navigator.vibrate(200);
+        }
+
+        // Meter valor en input
         const inputs = window.parent.document.querySelectorAll('input[type="text"]');
         if (inputs.length > 0) {
-            inputs[0].value = decodedText;
-            inputs[0].dispatchEvent(new Event("input", { bubbles: true }));
+            let input = inputs[0];
+
+            input.value = decodedText;
+
+            // 🔥 FORZAR EVENTOS PARA STREAMLIT
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+
+            // 🔥 SIMULAR ENTER (CLAVE)
+            let enterEvent = new KeyboardEvent("keydown", {
+                bubbles: true,
+                cancelable: true,
+                keyCode: 13
+            });
+            input.dispatchEvent(enterEvent);
         }
     }
 
@@ -140,11 +161,15 @@ if activar_scan:
 
     html5QrcodeScanner.start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: {width: 250, height: 150} },
+        {
+            fps: 20,  // 🔥 MÁS RÁPIDO
+            qrbox: { width: 280, height: 150 }, // 🔥 MEJOR ÁREA
+            aspectRatio: 1.7778
+        },
         onScanSuccess
     );
     </script>
-    """, height=300)
+    """, height=320)
 
 # -------------------------
 # FILTRADO
