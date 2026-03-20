@@ -66,7 +66,7 @@ def interpretar_ubicacion(codigo):
     elif caja_raw.startswith("C"):
         caja = f"Caja {caja_raw[1:]}"
     elif caja_raw.startswith("MEG"):
-        caja = f"Mega Gaveta {caja_raw[2:]}"
+        caja = f"Mega Gaveta {caja_raw[3:]}"
     else:
         caja = caja_raw.capitalize()
 
