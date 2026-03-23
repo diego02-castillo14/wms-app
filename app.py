@@ -36,6 +36,8 @@ def interpretar_ubicacion(codigo):
         anaquel = "Arriba en Local"
     elif anaquel_raw.startswith("A"):
         anaquel = f"Anaquel {anaquel_raw[1:]}"
+    elif anaquel_raw.startswith("EX"):
+        anaquel = f"Anaquel {anaquel_raw[2:]}"
     elif anaquel_raw.startswith("P"):
         anaquel = f"Panel {anaquel_raw[1:]}"
     else:
