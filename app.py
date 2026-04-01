@@ -34,14 +34,14 @@ def interpretar_ubicacion(codigo):
     anaquel_raw = partes[1] if len(partes) > 1 else ""
     if anaquel_raw == "AR":
         anaquel = "Arriba en Local"
+    elif anaquel_raw == "AT":
+        anaquel = "Atrás"
     elif anaquel_raw.startswith("A"):
         anaquel = f"Anaquel {anaquel_raw[1:]}"
     elif anaquel_raw.startswith("P"):
         anaquel = f"Panel Ranurado {anaquel_raw[1:]}"
     elif anaquel_raw.startswith("M"):
         anaquel = f"Mostrador {anaquel_raw[1:]}"
-    elif anaquel_raw == "AT":
-        anaquel = "Atrás"
     else:
         anaquel = anaquel_raw
 
