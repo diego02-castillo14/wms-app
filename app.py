@@ -38,6 +38,10 @@ def interpretar_ubicacion(codigo):
         anaquel = f"Anaquel {anaquel_raw[1:]}"
     elif anaquel_raw.startswith("P"):
         anaquel = f"Panel Ranurado {anaquel_raw[1:]}"
+    elif anaquel_raw.startswith("M"):
+        anaquel = f"Mostrador {anaquel_raw[1:]}"
+    elif anaquel_raw.startswith("AT"):
+        anaquel = f"Atrás {anaquel_raw[2:]}"
     else:
         anaquel = anaquel_raw
 
