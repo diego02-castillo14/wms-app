@@ -34,6 +34,8 @@ def interpretar_ubicacion(codigo):
     anaquel_raw = partes[1] if len(partes) > 1 else ""
     if anaquel_raw == "AR":
         anaquel = "Arriba en Local"
+    elif anaquel_raw == "EXI":
+        anaquel = "Exhibidor IPONE"
     elif anaquel_raw == "AT":
         anaquel = "Atrás"
     elif anaquel_raw.startswith("A"):
